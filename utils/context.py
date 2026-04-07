@@ -116,22 +116,30 @@ class GPUKernels():
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.context.GPUKernels.add() not implemented!') # delete me
-        
+#         raise Exception('utils.context.GPUKernels.add() not implemented!') # delete me
+        assert input_array_a.shape == input_array_b.shape
+        add_cuda = self.source_module.get_function('add')
         # 1) flatten arrays if 2D, save original shape
-        
+        original_shape = input_array_a.shape
+        a_flat = input_array_a.flatten()
+        b_flat = input_array_b.flatten()
         # 2) define input arrays in float 32
-        
+        a_flat = a_flat.astype(np.float32)
+        b_flat = b_flat.astype(np.float32)
         # 3) transfer to GPU using gpuarray.to_gpu()
-        
+        a_gpu = gpuarray.to_gpu(a_flat)
+        b_gpu = gpuarray.to_gpu(b_flat)
         # 4) define block and grid dimensions
-        
+        size = a_flat.size
+        block_dims = self.context.block_dims1D
+        grid_dims = self.context.grid_dims1D(size)
         # 5) call cuda function
-        
+        add_cuda(a_gpu,b_gpu,np.int32(size),block=block_dims,grid=grid_dims)
+
         # 6) GPU --> CPU
-    
+        cuda_output = a_gpu.get()
         # 7) reshape output if it was originally more than 1D
-    
+        cuda_output = cuda_output.reshape(original_shape)
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
@@ -158,18 +166,28 @@ class GPUKernels():
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.context.GPUKernels.relu() not implemented!') # delete me
-        
+#         raise Exception('utils.context.GPUKernels.relu() not implemented!') # delete me
+        relu_cuda = self.source_module.get_function('relu')
+        original_shape = input_array.shape
+        if len(original_shape) == 1:
+            input_2d = input_array.reshape(1, -1)
+        else:
+            input_2d = input_array
         # 1) define input in float 32
+        input_2d = input_2d.astype(np.float32)
         
         # 2) transfer to GPU
+        input_gpu = gpuarray.to_gpu(input_2d)
         
         # 3) define block and grid dimensions
-        
+        block_dims = self.context.block_dims
+        grid_dims = self.context.grid_dims(input_2d.shape)
         # 4) call CUDA function
-        
+        relu_cuda(input_gpu,np.int32(input_2d.shape[1]),np.int32(input_2d.shape[0]),block=block_dims,grid=grid_dims)
+
         # 5) GPU --> CPU
-    
+        cuda_output = input_gpu.get()
+        cuda_output = cuda_output.reshape(original_shape)
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
@@ -212,12 +230,27 @@ class GPUKernels():
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.context.GPUKernels.conv2d() not implemented!') # delete me
+#         raise Exception('utils.context.GPUKernels.conv2d() not implemented!') # delete me
+        conv2d_cuda = self.source_module.get_function('conv2d')
     
         # 1) define input, mask, and output in float 32
-        
+        input_array = input_array.astype(np.float32)
+        mask = mask.astype(np.float32)
+
+        H, W = input_array.shape
+        K = mask.shape[0]
         # No further hints.
-    
+        output = np.zeros_like(input_array, dtype=np.float32)
+        input_gpu = gpuarray.to_gpu(input_array)
+        mask_gpu = gpuarray.to_gpu(mask)
+        output_gpu = gpuarray.to_gpu(output)
+        block_dims = self.context.block_dims
+        grid_dims = self.context.grid_dims(input_array.shape)
+
+
+        conv2d_cuda(input_gpu,mask_gpu,output_gpu,np.int32(W),np.int32(H),np.int32(K),block=block_dims,grid=grid_dims)
+
+        cuda_output = output_gpu.get()
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
@@ -251,12 +284,24 @@ class GPUKernels():
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.context.GPUKernels.MaxPool2d() not implemented!') # delete me
+#         raise Exception('utils.context.GPUKernels.MaxPool2d() not implemented!') # delete me
         
         # 1) calculate output shape
-        
+        input_array = input_array.astype(np.float32)
+        H, W = input_array.shape
+        out_H = (H - kernel_size) // kernel_size + 1
+        out_W = (W - kernel_size) // kernel_size + 1
+        output = np.zeros((out_H, out_W), dtype=np.float32)
+
         # No further hints.
-    
+        input_gpu = gpuarray.to_gpu(input_array)
+        output_gpu = gpuarray.to_gpu(output)
+        block_dims = self.context.block_dims
+        grid_dims = self.context.grid_dims(output.shape)
+
+        MaxPool2d_cuda(input_gpu,output_gpu,np.int32(W),np.int32(H),np.int32(kernel_size),np.int32(kernel_size),block=block_dims,grid=grid_dims)
+
+        cuda_output = output_gpu.get()
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
@@ -310,24 +355,67 @@ class GPUKernels():
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.context.GPUKernels.linear() not implemented!') # delete me
+#         raise Exception('utils.context.GPUKernels.linear() not implemented!') # delete me
         
         # 1) define input, weights, bias, and outputs in float 32
-        
+        x = input_array.astype(np.float32).reshape(1, -1)
+        W = weights.astype(np.float32)
+        b = bias.astype(np.float32)
+
+        M, N = W.shape
         # 2) transfer to GPU
-        
+        x_gpu = gpuarray.to_gpu(x)
+        W_gpu = gpuarray.to_gpu(W)
         # 3) define 2D block and grid dimensions
-        
+        W_T = np.zeros((N, M), dtype=np.float32)
+        W_T_gpu = gpuarray.to_gpu(W_T)
+
+        block_dims = self.context.block_dims
+        grid_dims_transpose = self.context.grid_dims(W.shape)
+
+        transpose_cuda(
+            W_gpu,
+            W_T_gpu,
+            np.int32(N),   
+            np.int32(M),
+            block=block_dims,
+            grid=grid_dims_transpose
+        )
         # 4) call CUDA functions
-    
+        out = np.zeros((1, M), dtype=np.float32)
+        out_gpu = gpuarray.to_gpu(out)
+
+        grid_dims_dot = self.context.grid_dims(out.shape)
+
+
         # 5) matrix multiplication between input and transposed weights
-        
+        dot_cuda(
+            x_gpu,
+            W_T_gpu,
+            out_gpu,
+            np.int32(1), np.int32(N),  
+            np.int32(N), np.int32(M),  
+            np.int32(1), np.int32(M),  
+            block=block_dims,
+            grid=grid_dims_dot
+        )
         # 6) define 1D block and grid dims
-        
+        b_gpu = gpuarray.to_gpu(b)
+        block_1d = self.context.block_dims1D
+        grid_1d = self.context.grid_dims1D(M)
+   
         # 7) add bias
-        
+
+
+        add_cuda(
+            out_gpu,
+            b_gpu,
+            np.int32(M),
+            block=block_1d,
+            grid=grid_1d
+        )
         # 8) GPU --> CPU
-    
+        cuda_output = out_gpu.get()
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
