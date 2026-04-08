@@ -37,7 +37,7 @@ def show_array(a, fmt='jpeg'):
     Image.fromarray(a).save(f, fmt) # save array to byte stream
     display(IPython.display.Image(data=f.getvalue())) # display saved array
 
-def clip_webcam_inference(model, preprocess, text_features, class_names, device = DEVICE):
+def clip_webcam_inference(model, preprocess, text_features, class_names, device=DEVICE):
     """
     Perform webcam inference using CLIP with custom defined classes.
     
@@ -51,34 +51,52 @@ def clip_webcam_inference(model, preprocess, text_features, class_names, device 
         None
     """
     
-    cam = cv2.VideoCapture(0) # define camera stream
+    cam = cv2.VideoCapture(0)  # define camera stream
     
     try:
         print("Video feed started.")
 
         while True:
-            _, frame = cam.read() # read frame from video stream
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # convert raw frame from BGR to RGB
-            
+            ret, frame = cam.read()  # read frame from video stream
+            if not ret:
+                print("Failed to read frame from webcam.")
+                break
+
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # convert raw frame from BGR to RGB
             im_pil = Image.fromarray(frame)
-            
-            class_probabilities, most_probable_class = clip_prediction(model, preprocess, im_pil, text_features)
-            
+
+            class_probabilities, most_probable_class = clip_prediction(
+                model, preprocess, im_pil, text_features
+            )
+
+            # class_probabilities is a tensor, move it to cpu for display
             class_probabilities = class_probabilities.detach().cpu()
-            most_probable_class = most_probable_class.detach().cpu()
-            
-            display_text = f"{class_names[most_probable_class]}: {class_probabilities[0][most_probable_class].item()}"
-            frame = cv2.putText(frame, display_text, COORD, FONT,
-                       FONT_SCALE, COLOR, THICKNESS, cv2.LINE_AA)
-            
-            show_array(frame) # display the frame in JupyterLab
+
+            # most_probable_class is already an int from .item(), so DO NOT detach/cpu it
+            display_text = (
+                f"{class_names[most_probable_class]}: "
+                f"{class_probabilities[0][most_probable_class].item():.4f}"
+            )
+
+            frame = cv2.putText(
+                frame, display_text, COORD, FONT,
+                FONT_SCALE, COLOR, THICKNESS, cv2.LINE_AA
+            )
+
+            show_array(frame)  # display the frame in JupyterLab
             print(f'Predicted class: "{class_names[most_probable_class]}" \n')
             print('Class Probabilities:')
             for cls_name, cls_prob in zip(class_names, class_probabilities[0]):
                 print(f'{cls_name.capitalize()}: {round(cls_prob.item(), 4)}')
-                
-            IPython.display.clear_output(wait=True) # clear the previous frame
 
-    except Exception as e: # if interrupted
+            IPython.display.clear_output(wait=True)  # clear the previous frame
+
+    except KeyboardInterrupt:
+        print("Video feed stopped by user.")
+
+    except Exception as e:
         print("Video feed stopped.")
-        cam.release() # release the camera feed
+        print("Error:", e)
+
+    finally:
+        cam.release()  # always release camera
