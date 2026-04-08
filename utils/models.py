@@ -97,8 +97,11 @@ class CUDAClassifier(nn.Module):
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.models.GPUKernels.load_state_dict() not implemented!') # delete me
-    
+#         raise Exception('utils.models.GPUKernels.load_state_dict() not implemented!') # delete me
+        self.state_dict = {}
+
+        for key, weight in state_dict.items():
+            self.state_dict[key] = weight.cpu().numpy()
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
@@ -124,10 +127,64 @@ class CUDAClassifier(nn.Module):
         # --------------------------- YOUR IMPLEMENTATION HERE ---------------------------- #
         #####################################################################################
     
-        raise Exception('utils.models.GPUKernels.forward() not implemented!') # delete me
+#         raise Exception('utils.models.GPUKernels.forward() not implemented!') # delete me
         
         # HINT: Use the functions of self.kernels to call the layers.
-    
+        if len(x.shape) == 3:
+            x = x[:, :, 0]
+
+        x = x.astype(np.float32)
+
+        # conv1
+        conv1_weight = self.state_dict['conv1.weight'][0, 0]
+        x = self.kernels.conv2d(x, conv1_weight)
+
+        # relu
+        x = self.kernels.relu(x)
+
+        # pool
+        x = self.kernels.MaxPool2d(x, kernel_size=2)
+
+        # conv2
+        conv2_weight = self.state_dict['conv2.weight'][0, 0]
+        x = self.kernels.conv2d(x, conv2_weight)
+
+        # relu
+        x = self.kernels.relu(x)
+
+        # pool
+        x = self.kernels.MaxPool2d(x, kernel_size=2)
+
+        # flatten
+        x = self.kernels.flatten(x)
+
+        # fc1
+        fc1_weight = self.state_dict['fc1.weight']
+        fc1_bias = self.state_dict['fc1.bias']
+        x = self.kernels.linear(x, fc1_weight, fc1_bias)
+
+        # relu
+        x = self.kernels.relu(x)
+        x = self.kernels.flatten(x)
+
+        # fc2
+        fc2_weight = self.state_dict['fc2.weight']
+        fc2_bias = self.state_dict['fc2.bias']
+        x = self.kernels.linear(x, fc2_weight, fc2_bias)
+
+        # relu
+        x = self.kernels.relu(x)
+
+        # flatten again
+        x = self.kernels.flatten(x)
+
+        # fc3
+        fc3_weight = self.state_dict['fc3.weight']
+        fc3_bias = self.state_dict['fc3.bias']
+        x = self.kernels.linear(x, fc3_weight, fc3_bias)
+
+        # final output shape should be (10,)
+        x = self.kernels.flatten(x)
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
         #####################################################################################
