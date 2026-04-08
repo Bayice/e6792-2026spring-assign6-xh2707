@@ -174,8 +174,6 @@ class CUDAClassifier(nn.Module):
 
         # relu
         x = self.kernels.relu(x)
-
-        # flatten again
         x = self.kernels.flatten(x)
 
         # fc3
@@ -183,7 +181,6 @@ class CUDAClassifier(nn.Module):
         fc3_bias = self.state_dict['fc3.bias']
         x = self.kernels.linear(x, fc3_weight, fc3_bias)
 
-        # final output shape should be (10,)
         x = self.kernels.flatten(x)
         #####################################################################################
         # --------------------------- END YOUR IMPLEMENTATION ----------------------------- #
